@@ -7,20 +7,26 @@ import BuddyList from "../components/emergency/BuddyList";
 import SOSButton from "../components/emergency/SOSButton";
 
 export default function Emergency() {
+  const apiKey = import.meta.env.VITE_OPENCAGE_API_KEY;
+  const googleApiKey = import.meta.env.VITE_GOOGLE_API_KEY; // must be set in women-client/.env
+
   const [userLocation, setUserLocation] = useState(null);
   const [destination, setDestination] = useState("");
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [routeColor, setRouteColor] = useState("blue");
 
+  // NEW: load Google Places JS once & hold the nearest police station info
+  const [googleReady, setGoogleReady] = useState(false); // NEW
+  const [nearestPolice, setNearestPolice] = useState(null); // NEW
+
   const handleLocationPermission = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation([
-            position.coords.latitude,
-            position.coords.longitude,
-          ]);
+          const coords = [position.coords.latitude, position.coords.longitude];
+          setUserLocation(coords);
           alert("Location Permission Granted!");
+          // fetching of nearest police will happen automatically when googleReady && userLocation via useEffect
         },
         () => {
           alert("Location Permission Denied!");
@@ -28,6 +34,85 @@ export default function Emergency() {
       );
     } else {
       alert("Geolocation is not supported by this browser.");
+    }
+  };
+
+  // NEW: Load Google Maps JS (Places library) so we can call PlacesService without CORS issues
+  useEffect(() => {
+    if (!googleApiKey) return;
+    if (window.google?.maps?.places) {
+      setGoogleReady(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleApiKey}&libraries=places&v=weekly`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setGoogleReady(true);
+    document.body.appendChild(script);
+  }, [googleApiKey]);
+
+  // NEW: when both Google is ready and we have location, fetch nearest police station
+  useEffect(() => {
+    if (googleReady && userLocation) fetchNearestPolice(userLocation);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleReady, userLocation]);
+
+  // NEW: use PlacesService (no CORS problems) and get the closest station + phone
+  const fetchNearestPolice = ([lat, lng]) => {
+    try {
+      const center = new window.google.maps.LatLng(lat, lng);
+      const service = new window.google.maps.places.PlacesService(
+        document.createElement("div")
+      );
+      service.nearbySearch(
+        {
+          location: center,
+          rankBy: window.google.maps.places.RankBy.DISTANCE, // nearest first
+          type: "police",
+        },
+        (results, status) => {
+          if (
+            status !== window.google.maps.places.PlacesServiceStatus.OK ||
+            !results?.length
+          ) {
+            console.warn("No police stations found");
+            return;
+          }
+          const nearest = results[0];
+          service.getDetails(
+            {
+              placeId: nearest.place_id,
+              fields: [
+                "name",
+                "formatted_phone_number",
+                "international_phone_number",
+              ],
+            },
+            (details, s2) => {
+              if (
+                s2 === window.google.maps.places.PlacesServiceStatus.OK &&
+                details
+              ) {
+                setNearestPolice({
+                  name: details.name || nearest.name,
+                  phone:
+                    details.formatted_phone_number ||
+                    details.international_phone_number ||
+                    "Not available",
+                });
+              } else {
+                setNearestPolice({
+                  name: nearest.name,
+                  phone: "Not available",
+                });
+              }
+            }
+          );
+        }
+      );
+    } catch (e) {
+      console.error("PlacesService error:", e);
     }
   };
 
@@ -41,7 +126,7 @@ export default function Emergency() {
       const res = await fetch(
         `https://api.opencagedata.com/geocode/v1/json?q=${encodeURIComponent(
           address
-        )}&key=YOUR_API_KEY`
+        )}&key=${apiKey}`
       );
       const data = await res.json();
       if (data.results.length === 0) {
@@ -101,8 +186,8 @@ export default function Emergency() {
           routeColor={routeColor}
         />
 
-        {/* Nearby Assistance */}
-        <NearbyAssistance />
+        {/* Nearby Assistance — now receives nearest police info */}
+        <NearbyAssistance nearestPolice={nearestPolice} />
 
         {/* Nearby Buddies */}
         <BuddyList />

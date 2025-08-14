@@ -1,16 +1,41 @@
-export default function NearbyAssistance() {
+// client/components/emergency/NearbyAssistance.jsx
+export default function NearbyAssistance({ nearestPolice }) {
   return (
-    <>
-      <h2 className="text-white text-xl font-bold mb-3">Nearby Assistance</h2>
-      <div className="flex items-center justify-between bg-[#2a1f20] p-4 rounded-xl mb-4">
-        <div>
-          <p className="text-white font-medium">Police Station: Alpha</p>
-          <p className="text-[#b4a2a3] text-sm">Call</p>
-        </div>
-        <button className="rounded-full bg-[#362b2c] text-white px-4 py-2">
-          Call
-        </button>
+    <div className="mt-6 rounded-2xl p-4 bg-[#201818] border border-[#2a1d1d]">
+      <h2 className="text-lg font-semibold text-white mb-3">
+        Nearby Assistance
+      </h2>
+
+      {/* NEW: Nearest Police (auto after location permission) */}
+      <div className="text-sm text-gray-200 mb-3">
+        <div className="font-medium">Nearest Police Station</div>
+        {nearestPolice ? (
+          <div className="mt-1">
+            <div className="opacity-90">{nearestPolice.name}</div>
+            <div className="mt-0.5">
+              📞{" "}
+              {nearestPolice.phone &&
+              nearestPolice.phone !== "Not available" ? (
+                <a
+                  href={`tel:${nearestPolice.phone}`}
+                  className="text-blue-400 underline"
+                >
+                  {nearestPolice.phone}
+                </a>
+              ) : (
+                <span className="opacity-70">Phone not available</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="opacity-70">
+            Enable location to see the nearest police contact.
+          </div>
+        )}
       </div>
-    </>
+
+      {/* …keep your existing assistance items below */}
+      {/* e.g., emergency helplines, ambulance, NGOs, etc. */}
+    </div>
   );
 }
